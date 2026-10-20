@@ -1,0 +1,38 @@
+Copyright (c) 2026 GRADweight GmbH
+Alle Rechte vorbehalten.
+
+Dieses Repository enthalt die Shared Library `gw_shared_lib` der
+GRADweight GmbH: die gemeinsam genutzten Bausteine, aus denen alle
+GRADweight-Prototypen (s. internal-kb/katalog, Nr. 1-20) und die
+Prototypen-Repos aufgebaut werden.
+
+Es handelt sich um ein geschuetztes Werk im Sinne des
+Urheberrechtsgesetzes. Alle Inhalte sind geistiges Eigentum der
+GRADweight GmbH.
+
+Wiedergabe, Vervielfaeltigung, oeffentliche Nutzung oder Weitergabe an
+Dritte ist ohne vorherige schriftliche Genehmigung der GRADweight GmbH
+nicht gestattet.
+
+## Ausnahmen und Community
+
+- **`gw_shared_lib/`** — die sechs lauffaehigen Bausteine (inference,
+  guard, rag, parsers, config, audit) sind bewusst klein und lauffaehig
+  gehalten. Die Verwendung als Anfangspunkt fuer eigenen Code ist
+  erlaubt, mit Attribution ("GRADweight GmbH, gw-shared-lib v0.1.0,
+  2026-10").
+- **Beitraege** (Bugfix, neue Signatur, fehlender Baustein): willkommen
+  via Pull Request. Mit einem gemergten PR wird der Beitrag unter
+  derselben Lizenz veroeffnet (Contributor-Assign, keine gesonderte
+  Abrede notig).
+- **PyPI-Veroeffentlichung** unter dem Namen `gw-shared-lib` ist
+  GRADweight GmbH vorbehalten.
+
+## CANONICAL Signaturliste
+
+`gw_shared_lib.guard.INJECTION_SIGNATURES` (16 Signaturen, 6
+Kategorien) ist die einzelne Quelle fuer den gesamten
+GRADweight-Stack. Die fruheren Kopien in `guardrails/guard/core.py`
+und `rag/rag/guard.py` sollen per
+`from gw_shared_lib.guard import INJECTION_SIGNATURES`
+migrated werden (Issue -> PR).

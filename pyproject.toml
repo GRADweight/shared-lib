@@ -1,0 +1,23 @@
+[project]
+name = "gw-shared-lib"
+version = "0.1.0"
+description = "GRADweight Shared Library: RAG, Guard, Parser, Audit, Config — 6 Bausteine, nur stdlib (optional: numpy, pdfplumber, python-docx)"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.24"]
+pdf = ["pdfplumber>=0.10"]
+docx = ["python-docx>=1.0"]
+all = ["numpy>=1.24", "pdfplumber>=0.10", "python-docx>=1.0"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[project.scripts]
+gw-smoke = "gw_shared_lib.__main__:main"
