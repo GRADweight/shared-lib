@@ -87,7 +87,7 @@ def test_config_defaults():
 
 
 def test_audit_append_read():
-    import tempfile, os
+    import tempfile
     with tempfile.TemporaryDirectory() as td:
         log = AuditLog(f"{td}/a.jsonl")
         audit_action(log, "retrieval", actor="t", fall_id="ct-001",
@@ -97,3 +97,19 @@ def test_audit_append_read():
         assert entries[0]["action"] == "retrieval"
         assert entries[0]["fall_id"] == "ct-001"
         assert entries[0]["confidence"] == 0.84
+
+
+def test_audit_unknown_kwargs_go_to_data():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        log = AuditLog(f"{td}/b.jsonl")
+        e = audit_action(log, "rechnung_parsed", actor="demo",
+                         invoice_nr="A1", total="100", supplier="Muster AG")
+        d = e.to_dict()
+        # bekannte Felder -> Attribute
+        assert d["actor"] == "demo"
+        assert d["action"] == "rechnung_parsed"
+        # unbekanntes Domain -> data-Dict
+        assert d["data"]["invoice_nr"] == "A1"
+        assert d["data"]["total"] == "100"
+        assert d["data"]["supplier"] == "Muster AG"

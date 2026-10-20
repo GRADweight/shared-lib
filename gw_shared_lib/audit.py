@@ -81,10 +81,20 @@ class AuditLog:
             if flush:
                 f.flush()
 
-    def append_dict(self, d: dict, *, flush: bool = True) -> None:
-        entry = AuditEntry()
-        for k, v in d.items():
-            setattr(entry, k, v)
+    def append_dict(self, d: dict, *, flush: bool = True,
+                    **extra) -> None:
+        # Bekannte dataclass-Felder (aufr 'data') + unbekanntes -> data
+        known = set(AuditEntry.__dataclass_fields__.keys())
+        data = dict(d.get("data") or {})
+        for k, v in extra.items():
+            if k in known and k != "data":
+                d[k] = v
+            else:
+                data[k] = v
+        entry = AuditEntry(
+            **{k: v for k, v in d.items() if k in known and k != "data"},
+            data=data or {},
+        )
         self.append(entry, flush=flush)
 
     def read_all(self) -> list[dict]:
@@ -124,6 +134,13 @@ def audit_action(log: AuditLog | str | Path, action: str, **kwargs) -> AuditEntr
     """
     if not isinstance(log, AuditLog):
         log = AuditLog(log)
-    entry = AuditEntry(action=action, **kwargs)
+    # Bekannte Felder -> dataclass-Attribute; Unbekanntes -> data-Dict
+    known = set(AuditEntry.__dataclass_fields__.keys())
+    data = kwargs.get("data", {}) or {}
+    for k, v in kwargs.items():
+        if k not in known:
+            data[k] = v
+    kwargs = {k: v for k, v in kwargs.items() if k in known}
+    entry = AuditEntry(action=action, data=data, **kwargs)
     log.append(entry)
     return entry
