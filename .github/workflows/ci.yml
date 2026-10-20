@@ -1,4 +1,6 @@
-name: gw-shared-lib smoke
+# CI für gw-shared-lib (stdlib+optional, kein Netz)
+
+name: gw-shared-lib
 
 on:
   push:
@@ -21,12 +23,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest
-      - name: Smoke-offlin (StubClient, kein Netz)
+      - name: Compile check
+        run: python -m compileall -q gw_shared_lib/ tests/
+      - name: pytest
+        run: python -m pytest -q
+      - name: Smoke (offline, kein Netz)
         run: |
-          cd gw-shared-lib
           python -m gw_shared_lib smoke
-      - name: Tests
-        run: |
-          cd gw-shared-lib
-          python -m compileall -q gw_shared_lib/ tests/
-          python -m pytest -q
+          # Exit-0 = GREEN (10/10 tests + smoke-OK)
