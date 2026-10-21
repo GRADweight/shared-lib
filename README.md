@@ -10,6 +10,13 @@ aufgebaut werden.
 > kein Netz. `python -m gw_shared_lib smoke` läuft offline und zeigt die
 > Kette Inferenz → Guard → RAG → Config → Audit.
 
+## Für wen
+
+**Entwickler im GRADweight-Stack (und jeder, der nachbauen will)** — das
+gemeinsame Fundament, aus dem Prototypen 1–20 aufgebaut werden.  Nutzt es
+als Ausgangspunkt: kein Framework, das installiert werden muss, sondern
+Bausteine, die in jedes KMU-Projekt reinlaufen.
+
 ---
 
 ## Die sechs Bausteine
