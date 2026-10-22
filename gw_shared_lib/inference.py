@@ -60,43 +60,43 @@ class Client:
         """Embeddings für `texts` (str oder list[str]).
 
         Rückgabe: Liste von Vektoren, immer in derselben Reihenfolge.
+        Versucht je einen native-Ollama- und einen OpenAI-kompatiblen
+        Endpoint pro Input (fail-soft; leere Vektoren = nächster Versuch).
+        v0.1.1: URL-aware — bei `/v1`-Basis wird `/v1/embeddings` NICHT zum
+        doppelten `.../v1/v1/embeddings`; native Ollama läuft zuerst, dann
+        OpenAI-kompatibel. (Regression-Test: test_embed_is_url_aware)
         """
         model = model or self.embed_model
         single = isinstance(texts, str)
         inputs = [texts] if single else list(texts)
         out: list[list[float]] = []
+        is_v1 = self.url.rstrip("/").endswith("/v1")
         for t in inputs:
-            body = {"model": model, "input": t}
-            for ep in ("embeddings", "embed"):
+            # native Ollama zuerst, dann OpenAI-kompatibel.
+            # Endpoint-Pfade werden URL-aware gesetzt (/v1 wird nicht doppelt).
+            openai_ep = "/embeddings" if is_v1 else "/v1/embeddings"
+            attempts = [
+                (openai_ep, {"model": model, "input": [t]},
+                 lambda d: (d.get("data") or [{}])[0].get("embedding")
+                 if d.get("data") else None),
+                ("/api/embeddings", {"model": model, "prompt": t},
+                 lambda d: d.get("embedding") or d.get("embeddings")),
+                ("/api/embed", {"model": model, "prompt": t},
+                 lambda d: d.get("embedding")),
+            ]
+            # native zuerst, wenn Basis-URL kein /v1 ist
+            attempts = attempts[1:] + attempts[:1] if not is_v1 else attempts
+            for path, body, parse in attempts:
                 try:
-                    if ep == "embeddings" and "/v1" not in self.url:
-                        # Ollama /api/embeddings
-                        data = self._post(f"/api/{ep}", body)
-                        vecs = (data or {}).get("embeddings")
-                        if vecs:
-                            out.append(vecs[0])
-                            if single:
-                                return out
-                            continue
-                    if ep == "embeddings" and "/v1" in self.url:
-                        # OpenAI /v1/embeddings
-                        data = self._post(f"/api/embeddings", body)
-                        ds = (data or {}).get("data")
-                        if ds and len(ds) > 0:
-                            out.append(sorted(ds, key=lambda x: x.get("index", 0))[0]["embedding"])
-                            if single:
-                                return out
-                            continue
-                    if ep == "embed":
-                        data = self._post(f"/api/{ep}", body)
-                        emb = (data or {}).get("embedding")
-                        if emb:
-                            out.append(emb)
-                            if single:
-                                return out
-                            continue
+                    data = self._post(path, body)
+                    vec = parse(data or {})
+                    if vec:
+                        out.append([float(x) for x in vec])
+                        if single:
+                            return out
+                        break
                 except Exception:
-                    break
+                    pass
         return out if out else ([] if not single else [[]])
 
     def chat(self, messages: list[dict], model: Optional[str] = None,

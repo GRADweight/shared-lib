@@ -33,7 +33,7 @@ Repos (guardrails, rag) synchronisieren hierher, nicht umgekehrt.
 """
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Kern-Importe (funktionieren ohne jede optionale Abhängigkeit) —
 # die hier gezeigten Symbole sind die öffentliche API.
