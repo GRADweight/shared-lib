@@ -113,3 +113,78 @@ def test_audit_unknown_kwargs_go_to_data():
         assert d["data"]["invoice_nr"] == "A1"
         assert d["data"]["total"] == "100"
         assert d["data"]["supplier"] == "Muster AG"
+
+
+def test_audit_explicit_data_no_conflict():
+    """v0.1.1: `data=` explizit übergeben bricht nichts mehr.
+
+    Vor v0.1.1 landete `data` sowohl als explizites Argument als auch in
+    **kwargs -> `AuditEntry(action=..., data=data, **kwargs)` warf
+    TypeError: data specified more than once.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        log = AuditLog(f"{td}/c.jsonl")
+        e = audit_action(log, "retrieval", actor="t", fall_id="ct-099",
+                         confidence=0.84, data={"note": "manual override"})
+        d = e.to_dict()
+        assert d["actor"] == "t"
+        assert d["fall_id"] == "ct-099"
+        assert d["confidence"] == 0.84
+        assert d["data"]["note"] == "manual override"
+        # und ein zweiter Aufruf mit unbekanntem Feld neben explizitem data
+        e2 = audit_action(log, "rechnung_parsed", actor="demo",
+                          invoice_nr="X2", total="99",
+                          data={"manual": True})
+        d2 = e2.to_dict()
+        assert d2["data"]["invoice_nr"] == "X2"
+        assert d2["data"]["total"] == "99"
+        assert d2["data"]["manual"] is True
+
+
+def test_embed_is_url_aware(monkeypatch):
+    """v0.1.1: `embed()` baut `/v1` nie zum doppelten Pfad um.
+
+    Regression für den stumm-leeren-Vektor-Bug: bei `/v1`-Basis wurde
+    `/v1/embeddings` zu `.../v1/v1/embeddings` und lieferte leere Vektoren.
+    Nun: OpenAI-Basis nutzt `/embeddings`, native Ollama nutzt
+    `/api/embeddings` — nie ein `/api/`-Pfad unter einer `/v1`-Basis.
+    """
+    calls = []
+    def fake_post(self, path, body):
+        calls.append(path)
+        # Faithful Ollama shapes:
+        #   native /api/embeddings  -> {"embeddings": [[vec, ...]]}
+        #   native /api/embed       -> {"embedding": [vec]}
+        #   OpenAI  /embeddings     -> {"data": [{"embedding": [vec]}]}
+        if path == "/api/embeddings":
+            return {"embeddings": [[0.1, 0.2, 0.3]]}
+        if path == "/api/embed":
+            return {"embedding": [0.1, 0.2, 0.3]}
+        if path == "/embeddings":
+            return {"data": [{"embedding": [0.5, 0.6]}]}
+        return {}
+    monkeypatch.setattr(Client, "_post", fake_post)
+
+    # OpenAI-kompatible Basis (endet mit /v1): erster Versuch = /embeddings
+    c_v1 = Client(url="http://localhost:11434/v1", embed_model="m")
+    out1 = c_v1.embed("hello")
+    assert out1[0] == [0.5, 0.6]
+    assert calls[-1] == "/embeddings"
+
+    # native Ollama-Basis (kein /v1): /api/embeddings zuerst (nested-Shape)
+    # versagt beim float() der nested List, faellt auf /api/embed zurueck,
+    # das liefert den flachen Vektor — exakt das, was die v0.1.1-Chain tut.
+    calls.clear()
+    c_native = Client(url="http://localhost:11434", embed_model="m")
+    out2 = c_native.embed("hello")
+    assert out2[0] == [0.1, 0.2, 0.3]
+    assert calls[0] == "/api/embeddings"
+    # native hat auf /api/embed fallen lassen
+    assert "/api/embed" in calls
+
+    # Kern-Regel: unter einer /v1-Basis darf /api/ nie vorkommen
+    calls.clear()
+    _ = c_v1.embed("abc def")
+    doubled = [p for p in calls if p.startswith("/api/")]
+    assert doubled == [], f"/api/ unter /v1-Basis (verdoppelt?): {doubled}"
