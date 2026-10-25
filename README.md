@@ -96,3 +96,7 @@ dokumentiert — wir zeigen sie, statt sie zu verdecken.
 - `python -m gw_shared_lib smoke` → GREEN
 
 **Kontakt:** edin@gradweight.ch · gradweight.ch
+
+
+---
+> **Pruefen vor Public:** `SICHERHEIT_UND_GRENZEN.md` — Bekannte Fehler, Haftung, Lizenz-Erklaerung (ein Satz je Repo).
