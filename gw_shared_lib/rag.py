@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .guard import analyse, GuardPipeline
+from .guard import GuardPipeline
 from .inference import (
     Client, StubClient, cosine_similarity, embed_texts, DEFAULT_EMBED,
     DEFAULT_URL,
@@ -173,6 +173,7 @@ class RAGPipeline:
             citations=[
                 {"source": m.source, "confidence": m.confidence,
                  "retrieval_score": m.retrieval_score,
+                 "access_level": m.access_level,
                  "content": m.content[:120]}
                 for m in scored
             ],

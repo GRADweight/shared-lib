@@ -7,14 +7,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from gw_shared_lib.inference import (
-    StubClient, cosine_similarity, embed_texts, Client,
+    StubClient, cosine_similarity, Client,
 )
 from gw_shared_lib.guard import (
     INJECTION_SIGNATURES, INJECTION_CATEGORIES,
     GuardPipeline, analyse, detect,
 )
 from gw_shared_lib.rag import RAGPipeline, Chunk
-from gw_shared_lib.config import load_config, Config
+from gw_shared_lib.config import load_config
 from gw_shared_lib.audit import AuditLog, audit_action
 
 
@@ -153,38 +153,80 @@ def test_embed_is_url_aware(monkeypatch):
     calls = []
     def fake_post(self, path, body):
         calls.append(path)
-        # Faithful Ollama shapes:
-        #   native /api/embeddings  -> {"embeddings": [[vec, ...]]}
-        #   native /api/embed       -> {"embedding": [vec]}
-        #   OpenAI  /embeddings     -> {"data": [{"embedding": [vec]}]}
-        if path == "/api/embeddings":
-            return {"embeddings": [[0.1, 0.2, 0.3]]}
+        # Antwortformate laut Ollama- bzw. OpenAI-Doku:
+        #   /api/embed       -> {"embeddings": [[vec, ...]]}
+        #   /api/embeddings  -> {"embedding": [vec, ...]}  (ältere API)
+        #   /embeddings      -> {"data": [{"embedding": [vec, ...]}]}
         if path == "/api/embed":
-            return {"embedding": [0.1, 0.2, 0.3]}
+            return {"embeddings": [[0.1, 0.2, 0.3]]}
+        if path == "/api/embeddings":
+            return {"embedding": [0.7, 0.8]}
         if path == "/embeddings":
             return {"data": [{"embedding": [0.5, 0.6]}]}
         return {}
     monkeypatch.setattr(Client, "_post", fake_post)
 
-    # OpenAI-kompatible Basis (endet mit /v1): erster Versuch = /embeddings
+    # OpenAI-kompatible Basis (endet mit /v1): nur /embeddings, nie /api/...
     c_v1 = Client(url="http://localhost:11434/v1", embed_model="m")
     out1 = c_v1.embed("hello")
     assert out1[0] == [0.5, 0.6]
-    assert calls[-1] == "/embeddings"
+    assert calls == ["/embeddings"]
 
-    # native Ollama-Basis (kein /v1): /api/embeddings zuerst (nested-Shape)
-    # versagt beim float() der nested List, faellt auf /api/embed zurueck,
-    # das liefert den flachen Vektor — exakt das, was die v0.1.1-Chain tut.
+    # native Ollama-Basis (kein /v1): /api/embed zuerst
     calls.clear()
     c_native = Client(url="http://localhost:11434", embed_model="m")
     out2 = c_native.embed("hello")
     assert out2[0] == [0.1, 0.2, 0.3]
-    assert calls[0] == "/api/embeddings"
-    # native hat auf /api/embed fallen lassen
-    assert "/api/embed" in calls
+    assert calls == ["/api/embed"]
 
-    # Kern-Regel: unter einer /v1-Basis darf /api/ nie vorkommen
-    calls.clear()
-    _ = c_v1.embed("abc def")
-    doubled = [p for p in calls if p.startswith("/api/")]
-    assert doubled == [], f"/api/ unter /v1-Basis (verdoppelt?): {doubled}"
+
+def test_embed_keeps_order_on_failure(monkeypatch):
+    """Fehlgeschlagene Eingaben werden nicht ausgelassen (Platzhalter [])."""
+    def fake_post(self, path, body):
+        if "fail" in str(body.get("input")):
+            raise OSError("down")
+        return {"data": [{"embedding": [1.0, 2.0]}]}
+    monkeypatch.setattr(Client, "_post", fake_post)
+    c = Client(url="http://localhost:8000/v1", embed_model="m")
+    out = c.embed(["ok", "fail", "ok"])
+    assert out == [[1.0, 2.0], [], [1.0, 2.0]]
+
+
+def test_chat_parses_openai_and_native(monkeypatch):
+    """chat() verdoppelt /v1 nicht und versteht beide Antwortformate."""
+    calls = []
+    def fake_openai(self, path, body):
+        calls.append(path)
+        return {"choices": [{"message": {"content": "Grüezi"}}]}
+    monkeypatch.setattr(Client, "_post", fake_openai)
+    assert Client(url="http://localhost:8000/v1").chat([{"role": "user", "content": "x"}]) == "Grüezi"
+    assert calls == ["/chat/completions"]
+
+    def fake_native(self, path, body):
+        if path == "/api/chat":
+            return {"message": {"role": "assistant", "content": "Salü"}}
+        raise OSError("kein OpenAI-Endpunkt")
+    monkeypatch.setattr(Client, "_post", fake_native)
+    assert Client(url="http://localhost:11434").chat([{"role": "user", "content": "x"}]) == "Salü"
+
+
+
+def test_citations_carry_access_level():
+    """is_confidential() erkennt vertrauliche Quellen in den Zitaten."""
+    corpus = [Chunk(content="Lohnband Stufe 3: vertraulich", source="hr/lohn.md",
+                    confidence=0.9, access_level="confidential")]
+    res = RAGPipeline(corpus=corpus, min_score=0.0).answer("Lohnband Stufe 3")
+    assert res.citations, res
+    assert res.citations[0]["access_level"] == "confidential"
+    assert RAGPipeline.is_confidential(res.citations) is True
+
+
+def test_audit_action_keeps_extra_fields(tmp_path):
+    """Zusätzliche Schlüsselwörter landen unter `data`, bekannte Felder bleiben oben."""
+    entry = audit_action(str(tmp_path / "t.jsonl"), "rechnung_parsed", actor="demo",
+                         invoice_nr="A1", total="100", supplier="Muster AG")
+    d = entry.to_dict()
+    assert d["actor"] == "demo"
+    assert d["action"] == "rechnung_parsed"
+    assert d["data"]["invoice_nr"] == "A1"
+    assert d["data"]["supplier"] == "Muster AG"

@@ -1,39 +1,24 @@
-"""GRADweight — shared-lib: das gemeinsame technische Fundament.
+"""gradweight-shared-lib: kleine Hilfsbausteine aus der Frühphase von GRADweight.
 
-Dieses Paket bündelt die Bausteine, aus denen alle GRADweight-Prototypen
-(1–20, s. internal-kb/katalog) und Prototypen-Repos aufgebaut werden.
-Ziel: ein KMU soll mit `pip install gw-shared-lib` einen lauffähigen
-Grundstock bekommen, der **lokal** läuft und keine Cloud-Datenübertragung
-verlangt (DSG / SOVERAE-konform).
+Status: Wartungsmodus. Für Retrieval mit Zugriffskontrolle siehe das Repository
+``GRADweight/rag``, für die Erkennung von Prompt-Injection ``GRADweight/guardrails``.
 
-Sechs Bausteine (siehe README):
+Module:
 
-  1. inference  - OpenAI-kompatibler Client (embeddings + chat) für
-                  Ollama / vLLM / LiteLLM-Gateway. Dazu ein StubClient
-                  für Offline-Tests (kein Netz, deterministisch).
-  2. guard      - Signatur-Schicht (deterministisch, kein Netz) +
-                  pluggbarer Judge-Interface + GuardPipeline. CANONICAL:
-                  die 16 Injection-Signaturen gibt es nur hier einmal.
-  3. rag        - Chunk + retrieve (cosine) + RAGPipeline
-                  (Guard -> Retrieve -> quelle-zitierte Antwort). Verwendet
-                  inference, damit keine zweite Inferenz-Schicht existiert.
-  4. parsers    - Text/Markdown immer; PDF (pdfplumber, optional) und
-                  DOCX (python-docx, optional) mit graceful Degradation.
-  5. config     - .env- / OS-basierter Config-Loader (keine Secrets in
-                  Code; alles via OS.environ / .env).
-  6. audit      - Audit-Trail: wer / was / wann / Grund als JSON-lines.
-                  KMU-Grundbaustein (s. gw_core, aber self-contained).
+  inference  OpenAI-kompatibler Client und native Ollama-API, dazu ein
+             deterministischer StubClient für Tests (kein Netz).
+  guard      Einfache Phrasenliste (Demo-Niveau, leicht umgehbar).
+  rag        Kosinus-Suche über eine Liste im Speicher, Antwort als zitierte
+             Textausschnitte, ohne LLM-Generierung und ohne Rechteprüfung.
+  parsers    Text und Markdown; PDF (pdfplumber) und DOCX (python-docx) optional.
+  config     Konfiguration aus Umgebungsvariablen und optionaler .env-Datei.
+  audit      Audit-Protokoll als JSON-Lines, ohne Manipulationsschutz.
 
-Einzige harte Abhängigkeit: keine (nur stdlib). numpy ist optional
-(dann schnellere cosine-Sim). pdfplumber / python-docx sind optional
-und werden gracefully ausgelastet, falls nicht installiert.
-
-Versionierung: SemVer. Die Signaturliste ist CANONICAL — andere
-Repos (guardrails, rag) synchronisieren hierher, nicht umgekehrt.
+Keine harte Laufzeitabhängigkeit; numpy, pdfplumber und python-docx sind optional.
 """
 from __future__ import annotations
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 # Kern-Importe (funktionieren ohne jede optionale Abhängigkeit) —
 # die hier gezeigten Symbole sind die öffentliche API.
