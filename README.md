@@ -1,9 +1,8 @@
 # GRADweight — shared-lib
 
 **Das gemeinsame technische Fundament** des ganzen GRADweight-Stacks.
-Sechs lauffähige Bausteine, aus denen alle Prototypen (1–20,
-[`internal-kb/katalog`](../internal-kb/katalog/)) und Prototypen-Repos
-aufgebaut werden.
+Sechs lauffähige Bausteine, aus denen alle GRADweight-Prototypen und
+die Prototypen-Repos aufgebaut werden.
 
 > **Der Unterschied ist nicht das Versprechen — es ist, was wir zeigen.**
 > Dieses Repo ist lauffähig **ohne** Setup: keine API-Keys, keine Cloud,
