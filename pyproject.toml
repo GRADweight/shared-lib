@@ -1,23 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "gw-shared-lib"
-version = "0.1.1"
-description = "GRADweight Shared Library: RAG, Guard, Parser, Audit, Config — 6 Bausteine, nur stdlib (optional: numpy, pdfplumber, python-docx)"
-requires-python = ">=3.9"
+name = "gradweight-shared-lib"
+version = "0.2.0"
+description = "Kleine Hilfsbausteine (LLM-Client, Parser, Config, Audit) aus der Frühphase von GRADweight. Wartungsmodus."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "GRADweight GmbH", email = "mail@gradweight.ch" }]
+requires-python = ">=3.10"
 dependencies = []
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
 
 [project.optional-dependencies]
 numpy = ["numpy>=1.24"]
 pdf = ["pdfplumber>=0.10"]
 docx = ["python-docx>=1.0"]
 all = ["numpy>=1.24", "pdfplumber>=0.10", "python-docx>=1.0"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
-[build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.backends._legacy:_Backend"
+[project.urls]
+Repository = "https://github.com/GRADweight/shared-lib"
+
+[project.scripts]
+gw-smoke = "gw_shared_lib.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["gw_shared_lib*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 
-[project.scripts]
-gw-smoke = "gw_shared_lib.__main__:main"
+[tool.ruff]
+line-length = 100
+target-version = "py310"

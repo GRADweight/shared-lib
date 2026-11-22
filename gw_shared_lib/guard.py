@@ -1,6 +1,7 @@
 """Schicht 1: Guard (Signaturen + Judge + GuardPipeline).
 
-CANONICAL: die 16 Injection-Signaturen gibt es NUR in diesem Modul.
+Einfache Phrasenliste für Demos. Nicht als Schutzmassnahme geeignet;
+siehe GRADweight/guardrails.
 Die früheren Kopien in `guardrails/guard/core.py` und `rag/rag/guard.py`
 sollten per `from gw_shared_lib.guard import INJECTION_SIGNATURES`
 importiert werden (Migration: Issue -> PR).
@@ -88,7 +89,7 @@ class AnalysisResult:
 def _matched(user_input: str) -> list[tuple[str, str]]:
     low = user_input.lower()
     out: list[tuple[str, str]] = []
-    for sig, cat in zip(INJECTION_SIGNATURES, INJECTION_CATEGORIES):
+    for sig, cat in zip(INJECTION_SIGNATURES, INJECTION_CATEGORIES, strict=True):
         if sig in low:
             out.append((cat, sig))
     return out
@@ -112,7 +113,7 @@ def detect(user_input: str) -> bool:
 # ── Rückwärtskompatible Aliase (rag nutzt diese Namen) ──────────────────────
 # `rag/rag/guard.py` nennt diese `analyse_prompt_injection` /
 # `detect_prompt_injection`. Damit rag aus `gw_shared_lib.guard`
-# importieren kann (CANONICAL-Sync), sind sie hier als Aliase gesetzt.
+# importieren kann (Kompatibilität), sind sie hier als Aliase gesetzt.
 analyse_prompt_injection = analyse
 detect_prompt_injection = detect
 

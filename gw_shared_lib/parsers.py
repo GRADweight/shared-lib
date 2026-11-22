@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
 
 from .rag import Chunk
 
@@ -45,8 +44,6 @@ def _split_sections(text: str, source: str,
         return []
     lines = text.splitlines()
     out: list[Chunk] = []
-    current_lines: list[str] = []
-    current_src = source
 
     def flush(current_lines, current_src, conf):
         if not current_lines:

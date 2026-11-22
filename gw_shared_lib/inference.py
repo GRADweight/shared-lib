@@ -1,6 +1,6 @@
 """Schicht 0: Inferenz-Client (OpenAI-kompatibel).
 
-CANONICAL-Inferenzschicht für den ganzen GRADweight-Stack.
+Inferenzschicht: OpenAI-kompatibler Client und native Ollama-API.
 Ersetzt die zersplitterten Versionen (rag/retrieve.ollama_embed,
 platforms/stack/minimal/rag.py embed/chat) im ganzen Org.
 
@@ -18,13 +18,16 @@ auf `StubClient` zurück — fail-soft, keine Erfindung.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import math
 import re
 import hashlib
 import urllib.request
-from dataclasses import dataclass, field
-from typing import Callable, Optional
+from dataclasses import dataclass
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_URL = os.environ.get("GW_INFER_URL", "http://localhost:11434")
 DEFAULT_EMBED = os.environ.get("GW_INFER_EMBED", "nomic-embed-text")
@@ -75,29 +78,40 @@ class Client:
             # native Ollama zuerst, dann OpenAI-kompatibel.
             # Endpoint-Pfade werden URL-aware gesetzt (/v1 wird nicht doppelt).
             openai_ep = "/embeddings" if is_v1 else "/v1/embeddings"
+            # Formate (Ollama-Doku): /api/embed {"input"} -> {"embeddings": [[...]]},
+            # /api/embeddings (alt) {"prompt"} -> {"embedding": [...]},
+            # OpenAI-kompatibel /v1/embeddings -> {"data": [{"embedding": [...]}]}.
             attempts = [
                 (openai_ep, {"model": model, "input": [t]},
-                 lambda d: (d.get("data") or [{}])[0].get("embedding")
-                 if d.get("data") else None),
+                 lambda d: (d.get("data") or [{}])[0].get("embedding")),
+                ("/api/embed", {"model": model, "input": t},
+                 lambda d: (d.get("embeddings") or [None])[0]),
                 ("/api/embeddings", {"model": model, "prompt": t},
-                 lambda d: d.get("embedding") or d.get("embeddings")),
-                ("/api/embed", {"model": model, "prompt": t},
                  lambda d: d.get("embedding")),
             ]
-            # native zuerst, wenn Basis-URL kein /v1 ist
-            attempts = attempts[1:] + attempts[:1] if not is_v1 else attempts
+            # Basis-URL ohne /v1: zuerst die nativen Ollama-Endpunkte
+            if not is_v1:
+                attempts = attempts[1:] + attempts[:1]
+            else:
+                attempts = attempts[:1]
+            vec_out: list[float] = []
             for path, body, parse in attempts:
                 try:
                     data = self._post(path, body)
                     vec = parse(data or {})
-                    if vec:
-                        out.append([float(x) for x in vec])
-                        if single:
-                            return out
-                        break
-                except Exception:
-                    pass
-        return out if out else ([] if not single else [[]])
+                except Exception as exc:  # noqa: BLE001 - nächster Endpoint
+                    logger.debug("Embedding über %s fehlgeschlagen: %s", path, exc)
+                    continue
+                if isinstance(vec, list) and vec and all(
+                    isinstance(x, (int, float)) for x in vec
+                ):
+                    vec_out = [float(x) for x in vec]
+                    break
+            if not vec_out:
+                logger.warning("Kein Embedding für Eingabe %d erhalten", len(out))
+            # Platzhalter statt Auslassen: Reihenfolge und Länge bleiben erhalten.
+            out.append(vec_out)
+        return out
 
     def chat(self, messages: list[dict], model: Optional[str] = None,
              temperature: float = 0.2, max_tokens: int = 400) -> str:
@@ -112,15 +126,23 @@ class Client:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        for ep in ("/api/chat", "/v1/chat/completions"):
+        is_v1 = self.url.rstrip("/").endswith("/v1")
+        openai_ep = "/chat/completions" if is_v1 else "/v1/chat/completions"
+        native_body = {**body, "stream": False}
+        for ep, payload in ((openai_ep, body), ("/api/chat", native_body)):
+            if is_v1 and ep == "/api/chat":
+                continue  # native Ollama-API liegt nicht unter /v1
             try:
-                data = self._post(ep, body)
-                choices = data.get("choices") or []
-                if choices:
-                    return (choices[0].get("message", {}) or {}).get(
-                        "content", "")
-            except Exception:
+                data = self._post(ep, payload) or {}
+            except Exception as exc:  # noqa: BLE001 - nächster Endpoint
+                logger.debug("Chat über %s fehlgeschlagen: %s", ep, exc)
                 continue
+            choices = data.get("choices") or []
+            if choices:  # OpenAI-kompatibel
+                return str((choices[0].get("message") or {}).get("content", ""))
+            message = data.get("message")
+            if isinstance(message, dict):  # native Ollama /api/chat
+                return str(message.get("content", ""))
         return ""
 
 
@@ -193,7 +215,9 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Deterministische cosine-Similarität (reines Python, kein
     numpy nötig). 0..1 (nur positive, wenn beide Vektoren
     identisch) oder -1..1 für generelle Vektoren."""
-    dot = sum(x * y for x, y in zip(a, b))
+    if not a or not b or len(a) != len(b):
+        return 0.0  # leere Platzhalter oder unterschiedliche Modelle
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))
     if na == 0.0 or nb == 0.0:
