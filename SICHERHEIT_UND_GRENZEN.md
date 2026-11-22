@@ -25,3 +25,6 @@
 - [ ] Sichtbarkeit erst nach **ausdruecklicher Owner-Freigabe** (kein automatischer Visibility-Wechsel)
 
 _Grundlage: interner Forensic-Scan 25.10.2026; Werte aus /tmp/gwscan; nichts geschoben._
+
+## Warum diese Lizenz (ein Satz)
+Wiederverwendbare Bausteine sollen offen einsetzbar sein (12 Tests).
